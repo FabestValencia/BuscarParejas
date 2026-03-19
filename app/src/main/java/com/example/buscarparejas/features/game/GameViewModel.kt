@@ -27,12 +27,16 @@ class GameViewModel : ViewModel() {
     }
 
     fun onCardClicked(index: Int, onGameOver: (Int) -> Unit) {
-        val currentCards = _cards.value.toMutableList()
-        val card = currentCards[index]
-        if (isProcessing || index == firstSelectedIdx || card.isFlipped || card.isMatched) return
+        if (isProcessing) return
+        
+        val currentList = _cards.value.toMutableList()
+        val card = currentList.getOrNull(index) ?: return
+        
+        if (index == firstSelectedIdx || card.isFlipped || card.isMatched) return
 
-        currentCards[index] = card.copy(isFlipped = true)
-        _cards.value = currentCards
+        // Voltear la carta seleccionada
+        currentList[index] = card.copy(isFlipped = true)
+        _cards.value = currentList.toList()
 
         if (firstSelectedIdx == null) {
             firstSelectedIdx = index
@@ -41,19 +45,42 @@ class GameViewModel : ViewModel() {
             firstSelectedIdx = null
             score++
 
-            if (currentCards[firstIdx].value == currentCards[index].value) {
-                currentCards[firstIdx] = currentCards[firstIdx].copy(isMatched = true)
-                currentCards[index] = currentCards[index].copy(isMatched = true)
-                _cards.value = currentCards
-
-                if (currentCards.all { it.isMatched }) onGameOver(score)
+            if (currentList[firstIdx].value == currentList[index].value) {
+                // Es un par coincidente
+                viewModelScope.launch {
+                    val matchedList = _cards.value.toMutableList()
+                    // Activar estado de éxito (verde + escala)
+                    matchedList[firstIdx] = matchedList[firstIdx].copy(isMatched = true, isSuccess = true)
+                    matchedList[index] = matchedList[index].copy(isMatched = true, isSuccess = true)
+                    _cards.value = matchedList.toList()
+                    
+                    delay(1000L) // Mantener el efecto de éxito por 1 segundo para hacer que el jugador se sienta familiarizado
+                    
+                    val finalizedList = _cards.value.toMutableList()
+                    finalizedList[firstIdx] = finalizedList[firstIdx].copy(isSuccess = false)
+                    finalizedList[index] = finalizedList[index].copy(isSuccess = false)
+                    _cards.value = finalizedList.toList()
+                    
+                    if (finalizedList.all { it.isMatched }) onGameOver(score)
+                }
             } else {
+                // No coinciden: bloqueo de entrada y espera de 2 segundos
                 isProcessing = true
                 viewModelScope.launch {
-                    delay(1000L) // Pausa asíncrona de 1 segundo
-                    currentCards[firstIdx] = currentCards[firstIdx].copy(isFlipped = false)
-                    currentCards[index] = currentCards[index].copy(isFlipped = false)
-                    _cards.value = currentCards.toList()
+                    // Mostrar error (borde rojo)
+                    val errorList = _cards.value.toMutableList()
+                    errorList[firstIdx] = errorList[firstIdx].copy(isError = true)
+                    errorList[index] = errorList[index].copy(isError = true)
+                    _cards.value = errorList.toList()
+                    
+                    delay(2000L) // Tiempo de espera de 2 segundos para que el jugador tenga un momento para memorizar
+                    
+                    // Ocultar cartas y limpiar error
+                    val resetList = _cards.value.toMutableList()
+                    resetList[firstIdx] = resetList[firstIdx].copy(isFlipped = false, isError = false)
+                    resetList[index] = resetList[index].copy(isFlipped = false, isError = false)
+                    _cards.value = resetList.toList()
+
                     isProcessing = false
                 }
             }

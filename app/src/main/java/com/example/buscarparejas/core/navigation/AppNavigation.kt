@@ -30,6 +30,9 @@ fun AppNavigation() {
             val name = backStackEntry.arguments?.getString("name") ?: ""
             GameScreen(
                 name = name,
+                onExit = {
+                    navController.popBackStack()
+                },
                 onNavigateToResults = { finalName, score ->
                     navController.navigate(MainRoutes.Results.createRoute(finalName, score))
                 }
